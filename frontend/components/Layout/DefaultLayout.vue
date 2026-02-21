@@ -138,8 +138,20 @@ export default defineNuxtComponent({
     const languageDialog = ref<boolean>(false);
 
     const sidebar = ref<boolean>(false);
-    onMounted(() => {
+    const aiAddonEnabled = ref<boolean>(false);
+
+    onMounted(async () => {
       sidebar.value = display.lgAndUp.value;
+      // Fetch addon status for current household to conditionally show sidebar entry
+      try {
+        const { $api } = useNuxtApp();
+        const { data } = await $api.aiAddon.getStatus();
+        aiAddonEnabled.value = data?.enabled ?? false;
+      }
+      catch {
+        // If status endpoint fails (addon not deployed, etc.), hide the entry
+        aiAddonEnabled.value = false;
+      }
     });
 
     function cookbookAsLink(cookbook: ReadCookBook): SideBarLink {
@@ -244,6 +256,14 @@ export default defineNuxtComponent({
         to: "/household/mealplan/planner/view",
         restricted: true,
       },
+      ...(aiAddonEnabled.value
+        ? [{
+            icon: $globals.icons.robot,
+            to: "/meal-planner",
+            title: "Meal Planner",
+            restricted: true,
+          }]
+        : []),
       {
         icon: $globals.icons.formatListCheck,
         title: i18n.t("shopping-list.shopping-lists"),
@@ -297,6 +317,7 @@ export default defineNuxtComponent({
       isOwnGroup,
       languageDialog,
       sidebar,
+      aiAddonEnabled,
     };
   },
 });
