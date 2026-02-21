@@ -66,6 +66,17 @@ async def lifespan_fn(_: FastAPI) -> AsyncGenerator[None, None]:
     init_db.main()
     logger.info("end: database initialization")
 
+    logger.info("start: AI addon database initialization")
+    from mealie.ai_addon.db.models import AiAddonConfig, AiAddonUserPreference  # noqa: F401
+    from mealie.db.db_setup import session_context
+    from sqlalchemy import inspect as sa_inspect
+
+    with session_context() as _session:
+        inspector = sa_inspect(_session.get_bind())
+        addon_tables = [t for t in inspector.get_table_names() if t.startswith("ai_addon_")]
+        logger.info(f"AI addon tables found: {addon_tables}")
+    logger.info("end: AI addon database initialization")
+
     await start_scheduler()
 
     logger.info("-----SYSTEM STARTUP-----")
@@ -90,6 +101,8 @@ async def lifespan_fn(_: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(settings.OIDC_FEATURE)
     logger.info("-------==OPENAI==-------")
     logger.info(settings.OPENAI_FEATURE)
+    logger.info("-----==AI ADDON==-----")
+    logger.info("AI Meal Planner addon loaded")
     logger.info("------------------------")
 
     yield

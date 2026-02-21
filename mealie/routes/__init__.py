@@ -16,6 +16,7 @@ from . import (
     users,
     validators,
 )
+from mealie.ai_addon.routes import router as ai_addon_router
 
 router = APIRouter(prefix="/api")
 
@@ -33,3 +34,4 @@ router.include_router(unit_and_foods.router)
 router.include_router(admin.router)
 router.include_router(validators.router)
 router.include_router(explore.router)
+router.include_router(ai_addon_router)
