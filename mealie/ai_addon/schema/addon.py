@@ -36,3 +36,13 @@ class AddonStatusResponse(MealieModel):
     """
 
     enabled: bool
+
+
+class AddonConfigToggle(MealieModel):
+    """Input schema for admin toggle requests.
+
+    Currently unused in favour of the toggle-by-id endpoint, but kept
+    for future use where the payload may carry additional metadata.
+    """
+
+    enabled: bool
