@@ -259,8 +259,8 @@ export default defineNuxtComponent({
       ...(aiAddonEnabled.value
         ? [{
             icon: $globals.icons.robot,
-            to: "/meal-planner",
-            title: "Meal Planner",
+            to: "/ai-meal-planner",
+            title: "AI Meal Planner",
             restricted: true,
           }]
         : []),

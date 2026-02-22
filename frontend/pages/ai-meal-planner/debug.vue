@@ -22,7 +22,7 @@
             </v-btn>
             <v-btn
               variant="text"
-              :to="'/meal-planner'"
+              :to="'/ai-meal-planner'"
               :prepend-icon="$globals.icons.arrowLeftBold"
             >
               Back

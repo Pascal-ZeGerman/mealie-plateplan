@@ -5,7 +5,7 @@
         <div class="d-flex align-center justify-space-between mb-4">
           <div>
             <h1 class="text-h4 font-weight-bold">
-              Meal Planner
+              AI Meal Planner
             </h1>
             <p class="text-subtitle-1 text-medium-emphasis mt-1">
               AI-powered meal planning
@@ -76,7 +76,7 @@
               </v-icon>
               <span class="text-caption text-medium-emphasis mr-3">Admin</span>
               <NuxtLink
-                to="/meal-planner/debug"
+                to="/ai-meal-planner/debug"
                 class="text-caption text-decoration-none text-primary"
               >
                 View addon debug info
