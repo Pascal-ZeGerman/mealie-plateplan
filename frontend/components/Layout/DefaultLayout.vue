@@ -100,6 +100,7 @@ import type { SideBarLink } from "~/types/application-types";
 import { useCookbookPreferences } from "~/composables/use-users/preferences";
 import { useCookbookStore, usePublicCookbookStore } from "~/composables/store/use-cookbook-store";
 import type { ReadCookBook } from "~/lib/api/types/cookbook";
+import { useUserApi } from "~/composables/api";
 
 export default defineNuxtComponent({
   setup() {
@@ -140,12 +141,13 @@ export default defineNuxtComponent({
     const sidebar = ref<boolean>(false);
     const aiAddonEnabled = ref<boolean>(false);
 
+    const userApi = useUserApi();
+
     onMounted(async () => {
       sidebar.value = display.lgAndUp.value;
       // Fetch addon status for current household to conditionally show sidebar entry
       try {
-        const { $api } = useNuxtApp();
-        const { data } = await $api.aiAddon.getStatus();
+        const { data } = await userApi.aiAddon.getStatus();
         aiAddonEnabled.value = data?.enabled ?? false;
       }
       catch {

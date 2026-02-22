@@ -179,14 +179,16 @@
 
 <script lang="ts">
 import type { AddonHealthResponse } from "~/lib/api/user/ai-addon";
+import { useUserApi } from "~/composables/api";
 
 definePageMeta({
-  middleware: ["auth"],
+  middleware: ["admin-only"],
 });
 
 export default defineNuxtComponent({
   setup() {
-    const { $api, $globals } = useNuxtApp();
+    const { $globals } = useNuxtApp();
+    const api = useUserApi();
 
     const health = ref<AddonHealthResponse | null>(null);
     const loading = ref<boolean>(false);
@@ -196,7 +198,7 @@ export default defineNuxtComponent({
       loading.value = true;
       error.value = null;
       try {
-        const { data, error: apiError } = await $api.aiAddon.getHealth();
+        const { data, error: apiError } = await api.aiAddon.getHealth();
         if (apiError) {
           error.value = String(apiError);
         }
