@@ -13,11 +13,45 @@ export interface AddonStatusResponse {
   enabled: boolean;
 }
 
+export interface PreferencesResponse {
+  cuisinePreferences: Record<string, "love" | "neutral" | "dislike">;
+  allergies: string[];
+  dietaryRestrictions: string[];
+  familyAdults: number;
+  familyTeens: number;
+  familyChildren: number;
+  familyToddlers: number;
+  calculatedPortions: number;
+  portionOverride: number | null;
+  effectivePortions: number;
+  onboardingComplete: boolean;
+}
+
+export interface PreferencesUpdate {
+  cuisinePreferences?: Record<string, "love" | "neutral" | "dislike">;
+  allergies?: string[];
+  dietaryRestrictions?: string[];
+  familyAdults?: number;
+  familyTeens?: number;
+  familyChildren?: number;
+  familyToddlers?: number;
+  portionOverride?: number | null;
+  onboardingComplete?: boolean;
+}
+
+export interface SeedRatingIn {
+  recipeSlug: string;
+  recipeName: string;
+  rating: number;
+}
+
 const routes = {
   health: "/api/ai/health",
   status: "/api/ai/status",
   adminConfig: "/api/ai/admin/config",
   adminConfigToggle: (configId: number | string) => `/api/ai/admin/config/${configId}/toggle`,
+  preferences: "/api/ai/preferences",
+  seedRatings: "/api/ai/preferences/seed-ratings",
 };
 
 export class AiAddonApi extends BaseAPI {
@@ -45,5 +79,17 @@ export class AiAddonApi extends BaseAPI {
       routes.adminConfigToggle(configId),
       {},
     );
+  }
+
+  async getPreferences() {
+    return this.requests.get<PreferencesResponse>(routes.preferences);
+  }
+
+  async updatePreferences(payload: PreferencesUpdate) {
+    return this.requests.put<PreferencesResponse, PreferencesUpdate>(routes.preferences, payload);
+  }
+
+  async submitSeedRatings(ratings: SeedRatingIn[]) {
+    return this.requests.post<void, { ratings: SeedRatingIn[] }>(routes.seedRatings, { ratings });
   }
 }
