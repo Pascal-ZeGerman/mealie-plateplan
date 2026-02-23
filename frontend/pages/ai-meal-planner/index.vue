@@ -34,20 +34,62 @@
             </p>
             <div class="d-flex gap-3 flex-wrap">
               <v-tooltip
-                v-for="tab in tabs"
-                :key="tab.label"
                 location="bottom"
-                :text="tab.tooltip"
+                text="Coming in a future update"
               >
                 <template #activator="{ props }">
                   <v-chip
                     v-bind="props"
-                    :prepend-icon="tab.icon"
+                    :prepend-icon="$globals.icons.calendarMultiselect"
                     disabled
                     variant="tonal"
                     class="cursor-not-allowed"
                   >
-                    {{ tab.label }}
+                    Meal Plans
+                  </v-chip>
+                </template>
+              </v-tooltip>
+
+              <v-chip
+                v-if="onboardingComplete"
+                :prepend-icon="$globals.icons.cog"
+                variant="tonal"
+                color="primary"
+                :to="'/ai-meal-planner/preferences'"
+              >
+                Preferences
+              </v-chip>
+              <v-tooltip
+                v-else
+                location="bottom"
+                text="Complete onboarding to access preferences"
+              >
+                <template #activator="{ props }">
+                  <v-chip
+                    v-bind="props"
+                    :prepend-icon="$globals.icons.cog"
+                    disabled
+                    variant="tonal"
+                    class="cursor-not-allowed"
+                  >
+                    Preferences
+                  </v-chip>
+                </template>
+              </v-tooltip>
+
+              <v-tooltip
+                location="bottom"
+                text="Coming in a future update"
+              >
+                <template #activator="{ props }">
+                  <v-chip
+                    v-bind="props"
+                    :prepend-icon="$globals.icons.cog"
+                    disabled
+                    variant="tonal"
+                    class="cursor-not-allowed"
+                  >
+                    Settings
                   </v-chip>
                 </template>
               </v-tooltip>
@@ -90,34 +132,41 @@
 </template>
 
 <script lang="ts">
+import { useUserApi } from "~/composables/api";
+
 export default defineNuxtComponent({
   setup() {
     const { $globals } = useNuxtApp();
     const auth = useMealieAuth();
+    const api = useUserApi();
 
     const isAdmin = computed(() => auth.user.value?.admin ?? false);
+    const onboardingComplete = ref(false);
 
-    const tabs = [
-      {
-        label: "Meal Plans",
-        icon: $globals.icons.calendarMultiselect,
-        tooltip: "Coming in a future update",
-      },
-      {
-        label: "Preferences",
-        icon: $globals.icons.cog,
-        tooltip: "Coming in a future update",
-      },
-      {
-        label: "Settings",
-        icon: $globals.icons.cog,
-        tooltip: "Coming in a future update",
-      },
-    ];
+    onMounted(async () => {
+      try {
+        const { data } = await api.aiAddon.getPreferences();
+        if (data) {
+          onboardingComplete.value = data.onboardingComplete;
+          if (!data.onboardingComplete) {
+            await navigateTo("/ai-meal-planner/onboarding");
+          }
+        }
+        else {
+          // No preference record -- first visit, redirect to onboarding
+          await navigateTo("/ai-meal-planner/onboarding");
+        }
+      }
+      catch (_e) {
+        // API error on first visit -- redirect to onboarding
+        await navigateTo("/ai-meal-planner/onboarding");
+      }
+    });
 
     return {
+      $globals,
       isAdmin,
-      tabs,
+      onboardingComplete,
     };
   },
 });
