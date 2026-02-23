@@ -19,26 +19,27 @@
       v-model="currentStep"
       non-linear
       flat
-      alt-labels
+      :alt-labels="smAndUp"
     >
-      <v-stepper-header>
+      <v-stepper-header class="flex-nowrap overflow-x-auto">
         <template
           v-for="(step, i) in STEPS"
           :key="step.value"
         >
           <v-stepper-item
             :value="step.value"
-            :title="step.title"
-            :complete="completedSteps.has(step.value)"
+            :title="smAndUp ? step.title : ''"
+            :complete="isStepComplete(step.value)"
             editable
+            class="flex-shrink-0"
           />
-          <v-divider v-if="i < STEPS.length - 1" />
+          <v-divider v-if="i < STEPS.length - 1" class="flex-shrink-1" />
         </template>
       </v-stepper-header>
 
       <v-stepper-window>
         <v-stepper-window-item :value="1">
-          <div class="pa-4">
+          <div class="pa-2 pa-sm-4">
             <OnboardingStepCuisines
               :model-value="preferences.cuisinePreferences"
               @update:model-value="preferences.cuisinePreferences = $event"
@@ -47,7 +48,7 @@
         </v-stepper-window-item>
 
         <v-stepper-window-item :value="2">
-          <div class="pa-4">
+          <div class="pa-2 pa-sm-4">
             <OnboardingStepAllergies
               :model-value="preferences.allergies"
               @update:model-value="preferences.allergies = $event"
@@ -56,7 +57,7 @@
         </v-stepper-window-item>
 
         <v-stepper-window-item :value="3">
-          <div class="pa-4">
+          <div class="pa-2 pa-sm-4">
             <OnboardingStepDietary
               :model-value="preferences.dietaryRestrictions"
               @update:model-value="preferences.dietaryRestrictions = $event"
@@ -65,7 +66,7 @@
         </v-stepper-window-item>
 
         <v-stepper-window-item :value="4">
-          <div class="pa-4">
+          <div class="pa-2 pa-sm-4">
             <OnboardingStepFamily
               :model-value="familyModelValue"
               @update:model-value="onFamilyUpdate($event)"
@@ -74,13 +75,13 @@
         </v-stepper-window-item>
 
         <v-stepper-window-item :value="5">
-          <div class="pa-4">
+          <div class="pa-2 pa-sm-4">
             <OnboardingStepSeedRating ref="seedRatingRef" />
           </div>
         </v-stepper-window-item>
 
         <v-stepper-window-item :value="6">
-          <div class="pa-4">
+          <div class="pa-2 pa-sm-4">
             <OnboardingStepReview
               :cuisine-preferences="preferences.cuisinePreferences"
               :allergies="preferences.allergies"
@@ -136,6 +137,7 @@
 
 <script lang="ts">
 import { useUserApi } from "~/composables/api";
+import { useDisplay } from "vuetify";
 
 const STEPS = [
   { value: 1, title: "Cuisines" },
@@ -152,9 +154,11 @@ export default defineNuxtComponent({
   setup() {
     const api = useUserApi();
     const router = useRouter();
+    const { smAndUp } = useDisplay();
 
     const currentStep = ref(1);
-    const completedSteps = ref(new Set<number>());
+    // Track which steps have been visited (for optional steps: visited = complete)
+    const visitedSteps = ref(new Set<number>([1]));
     const completing = ref(false);
     const seedRatingRef = ref<{ getRatings: () => Array<{ recipeSlug: string; recipeName: string; rating: number }> } | null>(null);
     const seedRatingCount = ref(0);
@@ -208,10 +212,22 @@ export default defineNuxtComponent({
       { deep: true },
     );
 
-    // Track step transitions to mark completed steps
+    // Data-driven step completion:
+    // Step 1 (Cuisines): complete only when at least one cuisine has been rated
+    // Steps 2-5 (optional): complete once the step has been visited/navigated to
+    // Step 6 (Review): complete when onboarding finishes
+    function isStepComplete(stepValue: number): boolean {
+      if (stepValue === 1) {
+        return Object.keys(preferences.cuisinePreferences).length > 0;
+      }
+      // Optional steps: complete when visited
+      return visitedSteps.value.has(stepValue) && stepValue !== currentStep.value;
+    }
+
+    // Track step transitions to mark visited steps
     watch(currentStep, (newStep, oldStep) => {
       if (oldStep && oldStep !== newStep) {
-        completedSteps.value = new Set(completedSteps.value).add(oldStep);
+        visitedSteps.value = new Set(visitedSteps.value).add(newStep);
       }
       // If navigating to the review step, capture seed rating count
       if (newStep === 6 && seedRatingRef.value) {
@@ -307,8 +323,9 @@ export default defineNuxtComponent({
 
     function nextStep() {
       if (currentStep.value < STEPS.length) {
-        completedSteps.value = new Set(completedSteps.value).add(currentStep.value);
-        currentStep.value++;
+        const nextVal = currentStep.value + 1;
+        visitedSteps.value = new Set(visitedSteps.value).add(nextVal);
+        currentStep.value = nextVal;
       }
     }
 
@@ -321,13 +338,14 @@ export default defineNuxtComponent({
     return {
       STEPS,
       currentStep,
-      completedSteps,
       completing,
+      smAndUp,
       preferences,
       familyModelValue,
       seedRatingRef,
       seedRatingCount,
       onFamilyUpdate,
+      isStepComplete,
       skipOnboarding,
       completeOnboarding,
       nextStep,

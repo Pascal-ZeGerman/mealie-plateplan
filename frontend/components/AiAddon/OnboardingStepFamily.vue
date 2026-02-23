@@ -36,28 +36,20 @@
           >
             <div class="d-flex align-center gap-2">
               <v-btn
-                icon
+                :icon="$globals.icons.minus"
                 size="small"
                 variant="outlined"
                 :disabled="getCount(group.key) <= 0"
                 @click="decrement(group.key)"
-              >
-                <v-icon size="small">
-                  mdi-minus
-                </v-icon>
-              </v-btn>
+              />
               <span class="text-h6 mx-3 min-width-24 text-center">{{ getCount(group.key) }}</span>
               <v-btn
-                icon
+                :icon="$globals.icons.createAlt"
                 size="small"
                 variant="outlined"
                 :disabled="getCount(group.key) >= 20"
                 @click="increment(group.key)"
-              >
-                <v-icon size="small">
-                  mdi-plus
-                </v-icon>
-              </v-btn>
+              />
             </div>
           </v-col>
         </v-row>

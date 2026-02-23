@@ -21,35 +21,39 @@
           variant="outlined"
           class="pa-3"
         >
-          <div class="d-flex align-center justify-space-between flex-wrap gap-2">
-            <span class="text-body-1 font-weight-medium">{{ cuisine.label }}</span>
-            <v-btn-toggle
-              :model-value="modelValue[cuisine.id]"
-              mandatory
-              density="compact"
-              color="primary"
-              @update:model-value="onCuisineChange(cuisine.id, $event)"
-            >
-              <v-btn
-                value="love"
-                size="small"
-              >
-                Love
-              </v-btn>
-              <v-btn
-                value="neutral"
-                size="small"
-              >
-                Neutral
-              </v-btn>
-              <v-btn
-                value="dislike"
-                size="small"
-              >
-                Dislike
-              </v-btn>
-            </v-btn-toggle>
+          <div class="text-body-1 font-weight-medium mb-2">
+            {{ cuisine.label }}
           </div>
+          <v-btn-toggle
+            :model-value="modelValue[cuisine.id]"
+            mandatory
+            density="compact"
+            color="primary"
+            class="w-100"
+            @update:model-value="onCuisineChange(cuisine.id, $event)"
+          >
+            <v-btn
+              value="love"
+              size="small"
+              class="flex-grow-1"
+            >
+              Love
+            </v-btn>
+            <v-btn
+              value="neutral"
+              size="small"
+              class="flex-grow-1"
+            >
+              Neutral
+            </v-btn>
+            <v-btn
+              value="dislike"
+              size="small"
+              class="flex-grow-1"
+            >
+              Dislike
+            </v-btn>
+          </v-btn-toggle>
         </v-card>
       </v-col>
     </v-row>
