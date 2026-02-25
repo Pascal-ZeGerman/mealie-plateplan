@@ -67,14 +67,24 @@ async def lifespan_fn(_: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("end: database initialization")
 
     logger.info("start: AI addon database initialization")
-    from mealie.ai_addon.db.models import AiAddonConfig, AiAddonUserPreference  # noqa: F401
+    import mealie.ai_addon.db.models  # noqa: F401 — registers all addon models in SqlAlchemyBase.metadata
     from mealie.db.db_setup import session_context
+    from mealie.db.models._model_base import SqlAlchemyBase
     from sqlalchemy import inspect as sa_inspect
 
     with session_context() as _session:
-        inspector = sa_inspect(_session.get_bind())
+        engine = _session.get_bind()
+        # create_all is idempotent: creates addon tables that don't exist yet,
+        # skips tables that already exist. Handles fresh container startups without
+        # requiring a manual alembic migration step.
+        addon_tables_meta = [
+            t for t in SqlAlchemyBase.metadata.sorted_tables
+            if t.name.startswith("ai_addon_")
+        ]
+        SqlAlchemyBase.metadata.create_all(bind=engine, tables=addon_tables_meta, checkfirst=True)
+        inspector = sa_inspect(engine)
         addon_tables = [t for t in inspector.get_table_names() if t.startswith("ai_addon_")]
-        logger.info(f"AI addon tables found: {addon_tables}")
+        logger.info(f"AI addon tables initialized: {addon_tables}")
     logger.info("end: AI addon database initialization")
 
     await start_scheduler()

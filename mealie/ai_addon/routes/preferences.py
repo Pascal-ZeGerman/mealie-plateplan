@@ -23,7 +23,7 @@ def _get_or_create_prefs(
     if prefs is None:
         prefs = AiAddonUserPreference(
             user_id=str(user.id),
-            household_id=str(user.householdId),
+            household_id=str(user.household_id),
         )
         session.add(prefs)
         session.flush()
