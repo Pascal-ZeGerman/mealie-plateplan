@@ -11,11 +11,18 @@
               AI-powered meal planning
             </p>
           </div>
-          <div class="d-flex align-center">
+          <div class="d-flex align-center gap-2">
+            <v-btn
+              variant="outlined"
+              size="small"
+              :to="'/ai-meal-planner/settings'"
+              :prepend-icon="$globals.icons.cog"
+            >
+              Settings
+            </v-btn>
             <v-icon
               color="success"
               size="small"
-              class="mr-1"
             >
               {{ $globals.icons.checkboxMarkedCircle }}
             </v-icon>
@@ -24,6 +31,30 @@
         </div>
       </v-col>
     </v-row>
+
+    <!-- Budget alert banner — show when >= 80% of weekly budget used -->
+    <v-alert
+      v-if="budgetStatus && budgetStatus.alert && !budgetAlertDismissed"
+      type="warning"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+      closable
+      @click:close="budgetAlertDismissed = true"
+    >
+      You've used {{ budgetStatus.pct.toFixed(1) }}% of your weekly AI budget
+      (${{ budgetStatus.spent.toFixed(2) }} / ${{ budgetStatus.cap.toFixed(2) }}).
+      Resets Sunday.
+      <template #append>
+        <v-btn
+          variant="text"
+          size="small"
+          :to="'/ai-meal-planner/settings'"
+        >
+          View settings
+        </v-btn>
+      </template>
+    </v-alert>
 
     <v-row>
       <v-col cols="12">
@@ -77,22 +108,14 @@
                 </template>
               </v-tooltip>
 
-              <v-tooltip
-                location="bottom"
-                text="Coming in a future update"
+              <v-chip
+                :prepend-icon="$globals.icons.cog"
+                variant="tonal"
+                color="secondary"
+                :to="'/ai-meal-planner/settings'"
               >
-                <template #activator="{ props }">
-                  <v-chip
-                    v-bind="props"
-                    :prepend-icon="$globals.icons.cog"
-                    disabled
-                    variant="tonal"
-                    class="cursor-not-allowed"
-                  >
-                    Settings
-                  </v-chip>
-                </template>
-              </v-tooltip>
+                Settings
+              </v-chip>
             </div>
           </v-card-text>
         </v-card>
@@ -133,6 +156,7 @@
 
 <script lang="ts">
 import { useUserApi } from "~/composables/api";
+import type { BudgetStatusResponse } from "~/lib/api/user/ai-addon";
 
 export default defineNuxtComponent({
   setup() {
@@ -142,6 +166,10 @@ export default defineNuxtComponent({
 
     const isAdmin = computed(() => auth.user.value?.admin ?? false);
     const onboardingComplete = ref(false);
+
+    // Budget alert state
+    const budgetStatus = ref<BudgetStatusResponse | null>(null);
+    const budgetAlertDismissed = ref(false);
 
     onMounted(async () => {
       try {
@@ -161,12 +189,23 @@ export default defineNuxtComponent({
         // API error on first visit -- redirect to onboarding
         await navigateTo("/ai-meal-planner/onboarding");
       }
+
+      // Non-blocking budget fetch — runs independently after main page load
+      api.aiAddon.getBudgetStatus().then(({ data }) => {
+        if (data) {
+          budgetStatus.value = data;
+        }
+      }).catch(() => {
+        // Budget fetch failure is non-fatal — banner simply does not appear
+      });
     });
 
     return {
       $globals,
       isAdmin,
       onboardingComplete,
+      budgetStatus,
+      budgetAlertDismissed,
     };
   },
 });
