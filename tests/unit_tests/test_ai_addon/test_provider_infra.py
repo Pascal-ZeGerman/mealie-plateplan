@@ -280,3 +280,181 @@ def test_new_routes_registered():
     assert any("task-config" in p for p in all_paths), (
         f"Expected task-config route in {all_paths}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry: provider routing and additional tier cost calculation
+# ---------------------------------------------------------------------------
+
+
+def test_get_provider_for_tier_claude_tiers():
+    """haiku, sonnet, opus all map to the 'claude' provider."""
+    from mealie.ai_addon.providers.registry import get_provider_for_tier
+
+    assert get_provider_for_tier("haiku") == "claude"
+    assert get_provider_for_tier("sonnet") == "claude"
+    assert get_provider_for_tier("opus") == "claude"
+
+
+def test_get_provider_for_tier_openai_tiers():
+    """gpt-4o-mini and gpt-4o both map to the 'openai' provider."""
+    from mealie.ai_addon.providers.registry import get_provider_for_tier
+
+    assert get_provider_for_tier("gpt-4o-mini") == "openai"
+    assert get_provider_for_tier("gpt-4o") == "openai"
+
+
+def test_calculate_cost_usd_sonnet():
+    """Verify sonnet tier cost calculation.
+
+    sonnet: $3/MTok input, $15/MTok output
+    1000 input tokens = 1000/1,000,000 * $3 = $0.003
+    500 output tokens = 500/1,000,000 * $15 = $0.0075
+    total = $0.0105
+    """
+    from mealie.ai_addon.providers.registry import calculate_cost_usd
+
+    cost = calculate_cost_usd("sonnet", 1000, 500)
+    assert cost == pytest.approx(0.0105, rel=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# key_resolver: resolve_api_key priority logic
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_api_key_returns_household_key_when_found():
+    """Priority=True (default), household key exists → return household key."""
+    from unittest.mock import MagicMock, patch
+
+    from mealie.ai_addon.services.key_resolver import resolve_api_key
+
+    session = MagicMock()
+    record = MagicMock()
+    record.api_key = "sk-ant-household-key"
+    record.household_key_priority = True
+    session.query.return_value.filter_by.return_value.first.return_value = record
+
+    with patch("mealie.ai_addon.services.key_resolver.get_app_settings"):
+        result = resolve_api_key(session, "hh-123", "claude")
+
+    assert result == "sk-ant-household-key"
+
+
+def test_resolve_api_key_openai_falls_back_to_env_var():
+    """Priority=True, no household key, OpenAI env var present → return env var."""
+    from unittest.mock import MagicMock, patch
+
+    from mealie.ai_addon.services.key_resolver import resolve_api_key
+
+    session = MagicMock()
+    session.query.return_value.filter_by.return_value.first.return_value = None
+
+    mock_settings = MagicMock()
+    mock_settings.OPENAI_API_KEY = "sk-openai-env-key"
+
+    with patch("mealie.ai_addon.services.key_resolver.get_app_settings", return_value=mock_settings):
+        result = resolve_api_key(session, "hh-123", "openai")
+
+    assert result == "sk-openai-env-key"
+
+
+def test_resolve_api_key_no_key_raises_400():
+    """No household key and no env var fallback → raises HTTP 400."""
+    from unittest.mock import MagicMock, patch
+
+    from fastapi import HTTPException
+
+    from mealie.ai_addon.services.key_resolver import resolve_api_key
+
+    session = MagicMock()
+    session.query.return_value.filter_by.return_value.first.return_value = None
+
+    mock_settings = MagicMock(spec=[])  # no OPENAI_API_KEY attribute
+
+    with patch("mealie.ai_addon.services.key_resolver.get_app_settings", return_value=mock_settings):
+        with pytest.raises(HTTPException) as exc_info:
+            resolve_api_key(session, "hh-123", "claude")
+
+    assert exc_info.value.status_code == 400
+    assert "No AI provider configured" in exc_info.value.detail
+
+
+# ---------------------------------------------------------------------------
+# budget_service: server_max_cap enforcement and default config
+# ---------------------------------------------------------------------------
+
+
+def test_budget_status_server_max_cap_lowers_effective_cap():
+    """server_max_cap ($5) < household weekly_cap ($10) → effective_cap = $5."""
+    from unittest.mock import patch
+
+    from mealie.ai_addon.services.budget_service import check_and_get_budget_status
+
+    from unittest.mock import MagicMock
+    session = MagicMock()
+
+    # Spend $4.50 of $5 server max (90%) — well above 80% alert
+    with (
+        patch("mealie.ai_addon.services.budget_service.get_budget_config", return_value=(10.0, 5.0)),
+        patch("mealie.ai_addon.services.budget_service.get_weekly_spend", return_value=4.5),
+    ):
+        result = check_and_get_budget_status(session, "hh-test")
+
+    assert result["cap"] == pytest.approx(5.0)
+    assert result["pct"] == pytest.approx(90.0)
+    assert result["alert"] is True
+
+
+def test_budget_status_server_max_cap_above_household_cap_ignored():
+    """server_max_cap ($20) > household weekly_cap ($10) → effective_cap = $10."""
+    from unittest.mock import MagicMock, patch
+
+    from mealie.ai_addon.services.budget_service import check_and_get_budget_status
+
+    session = MagicMock()
+
+    # Spend $5.00 of $10 household cap (50%) — no alert
+    with (
+        patch("mealie.ai_addon.services.budget_service.get_budget_config", return_value=(10.0, 20.0)),
+        patch("mealie.ai_addon.services.budget_service.get_weekly_spend", return_value=5.0),
+    ):
+        result = check_and_get_budget_status(session, "hh-test")
+
+    assert result["cap"] == pytest.approx(10.0)
+    assert result["pct"] == pytest.approx(50.0)
+    assert result["alert"] is False
+
+
+# ---------------------------------------------------------------------------
+# ai_service: _resolve_tier default and DB lookup
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_tier_returns_configured_tier_when_found():
+    """Task type found in AiAddonTaskConfig → returns its provider_tier."""
+    from unittest.mock import MagicMock
+
+    from mealie.ai_addon.services.ai_service import _resolve_tier
+
+    session = MagicMock()
+    config = MagicMock()
+    config.provider_tier = "haiku"
+    session.query.return_value.filter_by.return_value.first.return_value = config
+
+    assert _resolve_tier(session, "meal_planning") == "haiku"
+
+
+def test_resolve_tier_returns_default_when_not_configured():
+    """Task type not in DB → returns DEFAULT_TIER ('sonnet')."""
+    from unittest.mock import MagicMock
+
+    from mealie.ai_addon.services.ai_service import DEFAULT_TIER, _resolve_tier
+
+    session = MagicMock()
+    session.query.return_value.filter_by.return_value.first.return_value = None
+
+    result = _resolve_tier(session, "unknown_task_type")
+
+    assert result == DEFAULT_TIER
+    assert DEFAULT_TIER == "sonnet"
