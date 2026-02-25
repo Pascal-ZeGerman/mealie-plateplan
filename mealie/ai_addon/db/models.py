@@ -1,6 +1,6 @@
 import json
 
-from sqlalchemy import Boolean, Float, Integer, String, Text
+from sqlalchemy import Boolean, Float, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mealie.db.models._model_base import SqlAlchemyBase
@@ -103,3 +103,64 @@ class AiAddonSeedRating(SqlAlchemyBase):
     recipe_slug: Mapped[str] = mapped_column(String, nullable=False)
     recipe_name: Mapped[str] = mapped_column(String, nullable=False)
     rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-5
+
+
+class AiAddonProviderSettings(SqlAlchemyBase):
+    """API keys per household per provider.
+    Any household member can set or change keys for their household.
+    Keys stored as plain text (masked on display). TODO: encrypt in future hardening pass.
+    """
+
+    __tablename__ = "ai_addon_provider_settings"
+    __table_args__ = (UniqueConstraint("household_id", "provider", name="uq_provider_settings_hh_provider"),)
+
+    household_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String, nullable=False)  # "claude" | "openai"
+    api_key: Mapped[str] = mapped_column(Text, nullable=False)
+    # Admin-controlled: when True, household key overrides server env var key.
+    # When False, server env var key takes precedence.
+    household_key_priority: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class AiAddonBudgetConfig(SqlAlchemyBase):
+    """Weekly spend cap per household.
+    Admin can set a server-wide max_cap_usd that households cannot exceed.
+    """
+
+    __tablename__ = "ai_addon_budget_config"
+
+    household_id: Mapped[str] = mapped_column(String, nullable=False, index=True, unique=True)
+    weekly_cap_usd: Mapped[float] = mapped_column(Float, default=10.0, nullable=False)
+    # Server-wide maximum — NULL means no server cap enforced
+    server_max_cap_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class AiAddonAiRequestLog(SqlAlchemyBase):
+    """Immutable audit log of every AI API call.
+    Costs pre-calculated at log time to enable simple SUM queries for budget enforcement.
+    """
+
+    __tablename__ = "ai_addon_ai_request_log"
+
+    household_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    task_type: Mapped[str] = mapped_column(String, nullable=False)  # "meal_planning", etc.
+    provider: Mapped[str] = mapped_column(String, nullable=False)   # "claude" | "openai"
+    model: Mapped[str] = mapped_column(String, nullable=False)       # actual model ID used
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    cost_usd: Mapped[float] = mapped_column(Float, nullable=False)
+    # created_at inherited from SqlAlchemyBase — used for week boundary filtering
+
+
+class AiAddonTaskConfig(SqlAlchemyBase):
+    """Server-wide routing: which provider tier to use for each task type.
+    Only admins can write. No household scope — one config for all households.
+    Phase 3 ships with no pre-seeded rows; Phase 4 registers 'meal_planning'.
+    """
+
+    __tablename__ = "ai_addon_task_config"
+    __table_args__ = (UniqueConstraint("task_type", name="uq_task_config_task_type"),)
+
+    task_type: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "meal_planning"
+    provider_tier: Mapped[str] = mapped_column(String, nullable=False)  # key into MODEL_REGISTRY
