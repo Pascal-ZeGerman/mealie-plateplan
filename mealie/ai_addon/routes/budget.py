@@ -31,9 +31,9 @@ def get_budget_status(
     """
     # Use a try/except to suppress the 429 for the read-only status endpoint
     from mealie.ai_addon.services.budget_service import get_budget_config, get_weekly_spend, ALERT_THRESHOLD_PCT, BLOCK_THRESHOLD_PCT
-    cap, server_max = get_budget_config(session, str(current_user.householdId))
+    cap, server_max = get_budget_config(session, str(current_user.household_id))
     effective_cap = min(cap, server_max) if server_max is not None else cap
-    spent = get_weekly_spend(session, str(current_user.householdId))
+    spent = get_weekly_spend(session, str(current_user.household_id))
     pct = (spent / effective_cap * 100) if effective_cap > 0 else 0.0
 
     return BudgetStatusResponse(
@@ -55,12 +55,12 @@ def update_budget_config(
     from mealie.ai_addon.services.budget_service import get_budget_config, get_weekly_spend, ALERT_THRESHOLD_PCT
 
     config = session.query(AiAddonBudgetConfig).filter_by(
-        household_id=str(current_user.householdId)
+        household_id=str(current_user.household_id)
     ).first()
 
     if config is None:
         config = AiAddonBudgetConfig(
-            household_id=str(current_user.householdId),
+            household_id=str(current_user.household_id),
             weekly_cap_usd=payload.weekly_cap_usd,
         )
         session.add(config)
@@ -73,9 +73,9 @@ def update_budget_config(
 
     session.commit()
 
-    cap, server_max = get_budget_config(session, str(current_user.householdId))
+    cap, server_max = get_budget_config(session, str(current_user.household_id))
     effective_cap = min(cap, server_max) if server_max is not None else cap
-    spent = get_weekly_spend(session, str(current_user.householdId))
+    spent = get_weekly_spend(session, str(current_user.household_id))
     pct = (spent / effective_cap * 100) if effective_cap > 0 else 0.0
 
     return BudgetStatusResponse(
@@ -119,9 +119,9 @@ def set_server_cap(
     session.commit()
 
     # Return admin's own budget status as confirmation
-    cap, server_max = get_budget_config(session, str(current_user.householdId))
+    cap, server_max = get_budget_config(session, str(current_user.household_id))
     effective_cap = min(cap, server_max) if server_max is not None else cap
-    spent = get_weekly_spend(session, str(current_user.householdId))
+    spent = get_weekly_spend(session, str(current_user.household_id))
     pct = (spent / effective_cap * 100) if effective_cap > 0 else 0.0
 
     return BudgetStatusResponse(

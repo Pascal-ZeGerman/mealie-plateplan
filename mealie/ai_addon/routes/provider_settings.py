@@ -37,7 +37,7 @@ async def list_provider_settings(
 ) -> list[ProviderKeyStatus]:
     """Return configured providers with masked keys (last 4 chars visible)."""
     records = session.query(AiAddonProviderSettings).filter_by(
-        household_id=str(current_user.householdId)
+        household_id=str(current_user.household_id)
     ).all()
     result = []
     for r in records:
@@ -73,7 +73,7 @@ async def save_provider_key(
 
     # Upsert
     record = session.query(AiAddonProviderSettings).filter_by(
-        household_id=str(current_user.householdId),
+        household_id=str(current_user.household_id),
         provider=payload.provider,
     ).first()
 
@@ -81,7 +81,7 @@ async def save_provider_key(
         record.api_key = payload.api_key
     else:
         record = AiAddonProviderSettings(
-            household_id=str(current_user.householdId),
+            household_id=str(current_user.household_id),
             provider=payload.provider,
             api_key=payload.api_key,
         )
@@ -101,7 +101,7 @@ def delete_provider_key(
 ) -> None:
     """Remove a saved API key for the given provider."""
     record = session.query(AiAddonProviderSettings).filter_by(
-        household_id=str(current_user.householdId),
+        household_id=str(current_user.household_id),
         provider=provider,
     ).first()
     if record:
