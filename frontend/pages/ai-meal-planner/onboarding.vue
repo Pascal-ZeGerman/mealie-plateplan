@@ -152,6 +152,9 @@ const DEBOUNCE_MS = 800;
 
 export default defineNuxtComponent({
   setup() {
+    definePageMeta({
+      middleware: ["ai-addon-auth"],
+    });
     const api = useUserApi();
     const router = useRouter();
     const { smAndUp } = useDisplay();

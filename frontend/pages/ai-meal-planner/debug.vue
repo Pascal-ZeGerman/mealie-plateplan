@@ -182,7 +182,7 @@ import type { AddonHealthResponse } from "~/lib/api/user/ai-addon";
 import { useUserApi } from "~/composables/api";
 
 definePageMeta({
-  middleware: ["admin-only"],
+  middleware: ["ai-addon-auth", "admin-only"],
 });
 
 export default defineNuxtComponent({

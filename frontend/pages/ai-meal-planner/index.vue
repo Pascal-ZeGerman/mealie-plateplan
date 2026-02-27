@@ -160,6 +160,9 @@ import type { BudgetStatusResponse } from "~/lib/api/user/ai-addon";
 
 export default defineNuxtComponent({
   setup() {
+    definePageMeta({
+      middleware: ["ai-addon-auth"],
+    });
     const { $globals } = useNuxtApp();
     const auth = useMealieAuth();
     const api = useUserApi();

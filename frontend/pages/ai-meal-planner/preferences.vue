@@ -164,6 +164,9 @@ const DEBOUNCE_MS = 800;
 
 export default defineNuxtComponent({
   setup() {
+    definePageMeta({
+      middleware: ["ai-addon-auth"],
+    });
     const { $globals } = useNuxtApp();
     const api = useUserApi();
 

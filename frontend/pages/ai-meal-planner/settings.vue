@@ -268,6 +268,9 @@ import type { ProviderKeyStatus, BudgetStatusResponse, TaskConfigListResponse } 
 
 export default defineNuxtComponent({
   setup() {
+    definePageMeta({
+      middleware: ["ai-addon-auth"],
+    });
     const { $globals } = useNuxtApp();
     const api = useUserApi();
     const auth = useMealieAuth();
