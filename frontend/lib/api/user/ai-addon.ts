@@ -87,6 +87,72 @@ export interface TaskConfigListResponse {
   availableTiers: AvailableTier[];
 }
 
+export interface MealSlotPreview {
+  date: string;
+  mealType: string;
+  slotType: string;
+  recipeId: string | null;
+  recipeName: string | null;
+  recipeSlug: string | null;
+  recipeServings: number | null;
+  title: string | null;
+  effectivePortions: number;
+  isLocked: boolean;
+  isDiningOut: boolean;
+}
+
+export interface MealPlanPreviewResponse {
+  slots: MealSlotPreview[];
+  weekStart: string;
+  recipeCount: number;
+}
+
+export interface GenerateMealPlanRequest {
+  weekStart: string;
+  mealTypes: string[];
+  excludedDays?: string[];
+  specialRequests?: string;
+  replaceUnlocked?: boolean;
+}
+
+export interface CommitMealPlanRequest {
+  weekStart: string;
+  slots: MealSlotPreview[];
+}
+
+export interface SwapMealRequest {
+  date: string;
+  mealType: string;
+  currentRecipeId?: string | null;
+  currentRecipeName?: string | null;
+}
+
+export interface SwapSuggestion {
+  recipeId: string;
+  recipeName: string;
+  recipeSlug: string;
+  categories: string[];
+  servings: number | null;
+}
+
+export interface SwapMealResponse {
+  suggestions: SwapSuggestion[];
+}
+
+export interface MetadataUpdate {
+  isLocked?: boolean | null;
+  isDiningOut?: boolean | null;
+}
+
+export interface MetadataResponse {
+  id: number;
+  groupMealPlanId: number;
+  isLocked: boolean;
+  isDiningOut: boolean;
+  aiGenerated: boolean;
+  weekStart: string;
+}
+
 const routes = {
   health: "/api/ai/health",
   status: "/api/ai/status",
@@ -101,6 +167,11 @@ const routes = {
   taskConfig: "/api/ai/task-config",
   adminTaskConfig: "/api/ai/admin/task-config",
   adminTaskConfigDelete: (taskType: string) => `/api/ai/admin/task-config/${encodeURIComponent(taskType)}`,
+  mealPlanGenerate: "/api/ai/meal-plan/generate",
+  mealPlanCommit: "/api/ai/meal-plan/commit",
+  mealPlanGet: (weekStart: string) => `/api/ai/meal-plan?week_start=${weekStart}`,
+  mealPlanSwap: "/api/ai/meal-plan/swap",
+  mealPlanMetadata: (planId: number) => `/api/ai/meal-plan/metadata/${planId}`,
 };
 
 export class AiAddonApi extends BaseAPI {
@@ -172,5 +243,29 @@ export class AiAddonApi extends BaseAPI {
 
   async deleteTaskConfig(taskType: string) {
     return this.requests.delete<void>(routes.adminTaskConfigDelete(taskType));
+  }
+
+  async generateMealPlan(payload: GenerateMealPlanRequest) {
+    return this.requests.post<MealPlanPreviewResponse, GenerateMealPlanRequest>(
+      routes.mealPlanGenerate, payload
+    );
+  }
+
+  async getMealPlan(weekStart: string) {
+    return this.requests.get<MealPlanPreviewResponse>(routes.mealPlanGet(weekStart));
+  }
+
+  async commitMealPlan(payload: CommitMealPlanRequest) {
+    return this.requests.post<number[], CommitMealPlanRequest>(routes.mealPlanCommit, payload);
+  }
+
+  async swapMeal(payload: SwapMealRequest) {
+    return this.requests.post<SwapMealResponse, SwapMealRequest>(routes.mealPlanSwap, payload);
+  }
+
+  async updateMetadata(planId: number, payload: MetadataUpdate) {
+    return this.requests.put<MetadataResponse, MetadataUpdate>(
+      routes.mealPlanMetadata(planId), payload
+    );
   }
 }
