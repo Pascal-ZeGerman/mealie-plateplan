@@ -193,6 +193,15 @@
       </v-col>
     </v-row>
 
+    <!-- SwapDialog: AI Suggestions tab (calls swapMeal API) + Browse Library tab (filtered allRecipes) -->
+    <SwapDialog
+      v-model="swapDialogOpen"
+      :slot="swapSlot"
+      :day-name="swapDayName"
+      :all-recipes="allRecipes"
+      @select="handleSwapSelect"
+    />
+
     <!-- Success snackbar -->
     <v-snackbar
       v-model="showSuccessSnackbar"
@@ -207,6 +216,14 @@
 <script lang="ts">
 import { useUserApi } from "~/composables/api";
 import type { MealSlotPreview, GenerateMealPlanRequest } from "~/lib/api/user/ai-addon";
+import type { RecipeSearchQuery } from "~/lib/api/user/recipes/recipe";
+
+interface AllRecipeEntry {
+  id: string;
+  name: string;
+  slug: string;
+  categories: string[];
+}
 
 const GENERATING_MESSAGES = [
   "Analyzing your preferences...",
@@ -248,6 +265,12 @@ export default defineNuxtComponent({
 
     // Map keying "${date}-${mealType}" -> group_meal_plan_id (populated after commit)
     const committedPlanIds = ref(new Map<string, number>());
+
+    // Swap dialog state
+    const swapDialogOpen = ref(false);
+    const swapSlot = ref<MealSlotPreview | null>(null);
+    const swapDayName = ref("");
+    const allRecipes = ref<AllRecipeEntry[]>([]);
 
     const hasExistingPlan = computed(() => slots.value.length > 0);
 
@@ -435,9 +458,31 @@ export default defineNuxtComponent({
     }
 
     function handleSwap(slot: MealSlotPreview) {
-      // Swap dialog — placeholder for future SwapDialog component
-      // For now, just log the slot
-      console.log("Swap requested for slot:", slot);
+      swapSlot.value = slot;
+      // Compute day name from slot.date (YYYY-MM-DD)
+      const dateObj = new Date(slot.date + "T12:00:00Z");
+      swapDayName.value = dateObj.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+      swapDialogOpen.value = true;
+    }
+
+    function handleSwapSelect(recipe: { recipeId: string; recipeName: string; recipeSlug: string; servings: number | null }) {
+      if (!swapSlot.value) return;
+      const idx = slots.value.findIndex(
+        s => s.date === swapSlot.value!.date && s.mealType === swapSlot.value!.mealType,
+      );
+      if (idx !== -1) {
+        slots.value[idx] = {
+          ...slots.value[idx],
+          recipeId: recipe.recipeId,
+          recipeName: recipe.recipeName,
+          recipeSlug: recipe.recipeSlug,
+          recipeServings: recipe.servings,
+          slotType: "recipe",
+          isDiningOut: false,
+        };
+      }
+      swapDialogOpen.value = false;
+      swapSlot.value = null;
     }
 
     onMounted(async () => {
@@ -472,6 +517,21 @@ export default defineNuxtComponent({
       catch (_e) {
         planState.value = "empty";
       }
+
+        // 4. Fetch all recipes for Browse Library (non-blocking)
+      // SwapDialog uses these for its Browse Library tab and AI Suggestions tab calls swapMeal
+      api.recipes.getAll(1, -1, {} as RecipeSearchQuery).then(({ data: recipePage }) => {
+        if (recipePage?.value?.items) {
+          allRecipes.value = recipePage.value.items.map(r => ({
+            id: r.id ?? "",
+            name: r.name ?? "",
+            slug: r.slug ?? "",
+            categories: (r.recipeCategory ?? []).map((c: { name?: string }) => c.name ?? "").filter(Boolean),
+          }));
+        }
+      }).catch(() => {
+        // Browse library will be empty — not blocking
+      });
     });
 
     onUnmounted(() => {
@@ -491,6 +551,10 @@ export default defineNuxtComponent({
       generatingMessage,
       committedPlanIds,
       hasExistingPlan,
+      swapDialogOpen,
+      swapSlot,
+      swapDayName,
+      allRecipes,
       openConfig,
       onConfigCancel,
       onGenerate,
@@ -499,6 +563,7 @@ export default defineNuxtComponent({
       handleDiningOutToggle,
       handleRemove,
       handleSwap,
+      handleSwapSelect,
     };
   },
 });
