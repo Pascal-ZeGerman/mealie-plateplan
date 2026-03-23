@@ -164,3 +164,24 @@ class AiAddonTaskConfig(SqlAlchemyBase):
 
     task_type: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "meal_planning"
     provider_tier: Mapped[str] = mapped_column(String, nullable=False)  # key into MODEL_REGISTRY
+
+
+class AiAddonMealPlanMetadata(SqlAlchemyBase):
+    """Per-entry metadata for AI-generated meal plan slots.
+
+    Links to Mealie's group_meal_plans table via group_meal_plan_id (Integer, no FK constraint).
+    Tracks lock status, dining-out flag, and AI-generation provenance.
+    week_start stored as "YYYY-MM-DD" string for simple filtering without date parsing.
+    """
+
+    __tablename__ = "ai_addon_meal_plan_metadata"
+    __table_args__ = (
+        UniqueConstraint("group_meal_plan_id", name="uq_meal_plan_metadata_plan_id"),
+    )
+
+    household_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    group_meal_plan_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_dining_out: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    ai_generated: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    week_start: Mapped[str] = mapped_column(String, nullable=False, index=True)  # "YYYY-MM-DD"
