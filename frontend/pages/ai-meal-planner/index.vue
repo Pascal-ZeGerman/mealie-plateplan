@@ -61,25 +61,17 @@
         <v-card>
           <v-card-text>
             <p class="text-body-1 mb-4">
-              Your AI meal planner is set up and ready. Feature availability is coming in future updates.
+              Your AI meal planner is set up and ready. Generate a meal plan to get started.
             </p>
             <div class="d-flex gap-3 flex-wrap">
-              <v-tooltip
-                location="bottom"
-                text="Coming in a future update"
+              <v-chip
+                :prepend-icon="$globals.icons.calendarMultiselect"
+                variant="tonal"
+                color="primary"
+                :to="'/ai-meal-planner/plan'"
               >
-                <template #activator="{ props }">
-                  <v-chip
-                    v-bind="props"
-                    :prepend-icon="$globals.icons.calendarMultiselect"
-                    disabled
-                    variant="tonal"
-                    class="cursor-not-allowed"
-                  >
-                    Meal Plans
-                  </v-chip>
-                </template>
-              </v-tooltip>
+                Meal Plans
+              </v-chip>
 
               <v-chip
                 v-if="onboardingComplete"
