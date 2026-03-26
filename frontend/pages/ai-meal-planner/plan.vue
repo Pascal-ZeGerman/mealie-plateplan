@@ -254,7 +254,7 @@ export default defineNuxtComponent({
 
     const planState = ref<"empty" | "config" | "generating" | "preview" | "committed">("empty");
     const slots = ref<MealSlotPreview[]>([]);
-    const currentWeekStart = ref("");
+    const currentWeekStart = ref(getMondayOf(new Date()));
     const recipeCount = ref(0);
     const configVisible = ref(false);
     const committing = ref(false);
@@ -335,8 +335,8 @@ export default defineNuxtComponent({
         const { data, error } = await api.aiAddon.generateMealPlan(config);
         stopGeneratingMessages();
 
-        if (error?.value) {
-          const status = (error.value as { status?: number }).status;
+        if (error) {
+          const status = (error as { status?: number }).status;
           if (status === 402) {
             generationError.value = "Weekly AI budget reached. Plan generation is paused until Sunday. View settings to adjust your budget.";
           }
@@ -348,9 +348,9 @@ export default defineNuxtComponent({
           }
           planState.value = slots.value.length > 0 ? "committed" : "empty";
         }
-        else if (data?.value) {
-          slots.value = data.value.slots;
-          recipeCount.value = data.value.recipeCount;
+        else if (data) {
+          slots.value = data.slots;
+          recipeCount.value = data.recipeCount;
           planState.value = "preview";
         }
         else {
@@ -373,9 +373,9 @@ export default defineNuxtComponent({
           slots: slots.value,
         });
 
-        if (data?.value) {
+        if (data) {
           // Map each slot index to the returned group_meal_plan_id
-          const ids = data.value;
+          const ids = data;
           const newMap = new Map<string, number>();
           slots.value.forEach((slot, idx) => {
             if (ids[idx] !== undefined) {
@@ -409,10 +409,10 @@ export default defineNuxtComponent({
         const planId = committedPlanIds.value.get(`${slot.date}-${slot.mealType}`);
         if (planId) {
           api.aiAddon.updateMetadata(planId, { isLocked: !slot.isLocked }).then(({ data }) => {
-            if (data?.value) {
+            if (data) {
               const idx = slots.value.findIndex(s => s.date === slot.date && s.mealType === slot.mealType);
               if (idx !== -1) {
-                slots.value[idx] = { ...slots.value[idx], isLocked: data.value!.isLocked };
+                slots.value[idx] = { ...slots.value[idx], isLocked: data.isLocked };
               }
             }
           }).catch(() => {
@@ -435,10 +435,10 @@ export default defineNuxtComponent({
         const planId = committedPlanIds.value.get(`${slot.date}-${slot.mealType}`);
         if (planId) {
           api.aiAddon.updateMetadata(planId, { isDiningOut: !slot.isDiningOut }).then(({ data }) => {
-            if (data?.value) {
+            if (data) {
               const idx = slots.value.findIndex(s => s.date === slot.date && s.mealType === slot.mealType);
               if (idx !== -1) {
-                slots.value[idx] = { ...slots.value[idx], isDiningOut: data.value!.isDiningOut };
+                slots.value[idx] = { ...slots.value[idx], isDiningOut: data.isDiningOut };
               }
             }
           }).catch(() => {
@@ -489,7 +489,7 @@ export default defineNuxtComponent({
       // 1. Onboarding gate (same pattern as index.vue)
       try {
         const { data: prefs } = await api.aiAddon.getPreferences();
-        if (!prefs?.value?.onboardingComplete) {
+        if (!prefs?.onboardingComplete) {
           await navigateTo("/ai-meal-planner/onboarding");
           return;
         }
@@ -505,9 +505,9 @@ export default defineNuxtComponent({
       // 3. Fetch existing plan
       try {
         const { data } = await api.aiAddon.getMealPlan(currentWeekStart.value);
-        if (data?.value && data.value.slots && data.value.slots.length > 0) {
-          slots.value = data.value.slots;
-          recipeCount.value = data.value.recipeCount;
+        if (data && data.slots && data.slots.length > 0) {
+          slots.value = data.slots;
+          recipeCount.value = data.recipeCount;
           planState.value = "committed";
         }
         else {
@@ -521,8 +521,8 @@ export default defineNuxtComponent({
         // 4. Fetch all recipes for Browse Library (non-blocking)
       // SwapDialog uses these for its Browse Library tab and AI Suggestions tab calls swapMeal
       api.recipes.getAll(1, -1, {} as RecipeSearchQuery).then(({ data: recipePage }) => {
-        if (recipePage?.value?.items) {
-          allRecipes.value = recipePage.value.items.map(r => ({
+        if (recipePage?.items) {
+          allRecipes.value = recipePage.items.map(r => ({
             id: r.id ?? "",
             name: r.name ?? "",
             slug: r.slug ?? "",

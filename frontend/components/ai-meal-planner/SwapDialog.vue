@@ -173,11 +173,11 @@ export default defineNuxtComponent({
             currentRecipeName: props.slot.recipeName,
           });
 
-          if (error?.value || !data?.value) {
+          if (error || !data) {
             aiError.value = true;
           }
           else {
-            suggestions.value = data.value.suggestions;
+            suggestions.value = data.suggestions;
           }
         }
         catch (_e) {
