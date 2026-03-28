@@ -32,12 +32,14 @@
               :slot="getSlot(dayInfo.date, mealType)"
               :plan-state="planState"
               :show-actions="true"
+              :group-meal-plan-id="committedPlanIds.get(`${dayInfo.date}-${mealType}`) ?? null"
               @swap="$emit('swap', $event)"
               @lock="$emit('lock', $event)"
               @unlock="$emit('unlock', $event)"
               @remove="$emit('remove', $event)"
               @mark-dining-out="$emit('mark-dining-out', $event)"
               @unmark-dining-out="$emit('unmark-dining-out', $event)"
+              @rate="$emit('rate', $event)"
             />
           </template>
         </div>
@@ -76,6 +78,7 @@ const EMPTY_SLOT = (date: string, mealType: string): MealSlotPreview => ({
   effectivePortions: 0,
   isLocked: false,
   isDiningOut: false,
+  currentRating: null,
 });
 
 export default defineNuxtComponent({
@@ -96,9 +99,13 @@ export default defineNuxtComponent({
       type: Boolean,
       default: false,
     },
+    committedPlanIds: {
+      type: Object as () => Map<string, number>,
+      default: () => new Map<string, number>(),
+    },
   },
 
-  emits: ["swap", "lock", "unlock", "remove", "mark-dining-out", "unmark-dining-out"],
+  emits: ["swap", "lock", "unlock", "remove", "mark-dining-out", "unmark-dining-out", "rate"],
 
   setup(props) {
     // Build the 7 day date strings from weekStart (Monday)

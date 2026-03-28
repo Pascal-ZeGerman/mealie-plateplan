@@ -159,6 +159,27 @@
     >
       Serves {{ slot.effectivePortions }}×
     </p>
+
+    <!-- Star row: always visible on committed recipe slots, OUTSIDE .slot-actions -->
+    <div v-if="planState === 'committed' && slot.slotType === 'recipe'" class="star-row mt-1 mb-1">
+      <v-rating
+        v-model="displayStarValue"
+        :length="5"
+        size="small"
+        color="warning"
+        empty-icon="mdi-star-outline"
+        :half-increments="false"
+        :readonly="ratingPending"
+        @update:model-value="onStarClick"
+      />
+      <v-progress-circular
+        v-if="ratingPending"
+        indeterminate
+        :size="16"
+        class="ml-1"
+      />
+    </div>
+
     <div v-if="showActions" class="d-flex justify-end gap-1 slot-actions">
       <v-btn
         icon
@@ -189,10 +210,44 @@
         <v-icon size="small">{{ $globals.icons.delete }}</v-icon>
       </v-btn>
     </div>
+
+    <!-- Rating confirmation dialog -->
+    <v-dialog v-model="showRatingDialog" max-width="360">
+      <v-card>
+        <v-card-title class="text-h6">
+          {{ isClearing ? 'Remove rating?' : 'Save rating?' }}
+        </v-card-title>
+        <v-card-text>
+          {{ isClearing
+            ? `Remove your rating for ${slot.recipeName}? This cannot be undone.`
+            : `Rate ${slot.recipeName} ${pendingValue} star${pendingValue !== 1 ? 's' : ''}?`
+          }}
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="cancelRating">
+            {{ isClearing ? 'Keep rating' : 'Keep current rating' }}
+          </v-btn>
+          <v-btn
+            :variant="'flat'"
+            :color="isClearing ? 'error' : 'primary'"
+            :loading="ratingPending"
+            @click="confirmRating"
+          >
+            {{ isClearing ? 'Remove Rating' : 'Save Rating' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-snackbar v-model="showRatingError" :timeout="4000" color="error" location="bottom">
+      Could not save your rating. Check your connection and try again.
+    </v-snackbar>
   </v-card>
 </template>
 
 <script lang="ts">
+import { useUserApi } from "~/composables/api";
 import type { MealSlotPreview } from "~/lib/api/user/ai-addon";
 
 export default defineNuxtComponent({
@@ -209,11 +264,15 @@ export default defineNuxtComponent({
       type: Boolean,
       default: true,
     },
+    groupMealPlanId: {
+      type: Number,
+      default: null,
+    },
   },
 
-  emits: ["swap", "lock", "unlock", "remove", "mark-dining-out", "unmark-dining-out"],
+  emits: ["swap", "lock", "unlock", "remove", "mark-dining-out", "unmark-dining-out", "rate"],
 
-  setup(props) {
+  setup(props, { emit }) {
     const { $globals } = useNuxtApp();
 
     const mealTypeColor = computed(() => {
@@ -230,10 +289,78 @@ export default defineNuxtComponent({
         && props.slot.recipeServings !== null;
     });
 
+    // Rating state
+    const confirmedRating = ref(props.slot.currentRating ?? 0);
+    const displayStarValue = ref(props.slot.currentRating ?? 0);
+    const pendingValue = ref(0);
+    const showRatingDialog = ref(false);
+    const ratingPending = ref(false);
+    const isClearing = ref(false);
+    const showRatingError = ref(false);
+
+    // Sync when prop changes (parent updates slot after successful API call)
+    watch(() => props.slot.currentRating, (newVal) => {
+      confirmedRating.value = newVal ?? 0;
+      displayStarValue.value = newVal ?? 0;
+    });
+
+    function onStarClick(newVal: number) {
+      if (newVal === confirmedRating.value) {
+        // Tapping same star = clear rating
+        isClearing.value = true;
+        pendingValue.value = 0;
+      }
+      else {
+        isClearing.value = false;
+        pendingValue.value = newVal;
+      }
+      // Immediately revert display to confirmed value (no premature visual update)
+      displayStarValue.value = confirmedRating.value;
+      showRatingDialog.value = true;
+    }
+
+    async function confirmRating() {
+      ratingPending.value = true;
+      showRatingDialog.value = false;
+      try {
+        const api = useUserApi();
+        await api.aiAddon.submitRating({
+          recipeId: props.slot.recipeId!,
+          recipeName: props.slot.recipeName!,
+          rating: pendingValue.value,
+          groupMealPlanId: props.groupMealPlanId ?? null,
+        });
+        confirmedRating.value = pendingValue.value;
+        displayStarValue.value = pendingValue.value;
+        emit("rate", { slot: props.slot, rating: pendingValue.value });
+      }
+      catch (_e) {
+        displayStarValue.value = confirmedRating.value;
+        showRatingError.value = true;
+      }
+      finally {
+        ratingPending.value = false;
+      }
+    }
+
+    function cancelRating() {
+      showRatingDialog.value = false;
+      displayStarValue.value = confirmedRating.value;
+    }
+
     return {
       $globals,
       mealTypeColor,
       showPortionBadge,
+      displayStarValue,
+      pendingValue,
+      showRatingDialog,
+      ratingPending,
+      isClearing,
+      showRatingError,
+      onStarClick,
+      confirmRating,
+      cancelRating,
     };
   },
 });
@@ -253,5 +380,11 @@ export default defineNuxtComponent({
   .slot-card .slot-actions {
     opacity: 1;
   }
+}
+
+.star-row {
+  /* Always visible — NOT inside .slot-actions which has hover-only opacity */
+  display: flex;
+  align-items: center;
 }
 </style>

@@ -183,12 +183,14 @@
           :week-start="currentWeekStart"
           :plan-state="planState"
           :loading="false"
+          :committed-plan-ids="committedPlanIds"
           @swap="handleSwap"
           @lock="handleLockToggle"
           @unlock="handleLockToggle"
           @remove="handleRemove"
           @mark-dining-out="handleDiningOutToggle"
           @unmark-dining-out="handleDiningOutToggle"
+          @rate="handleRate"
         />
       </v-col>
     </v-row>
@@ -485,6 +487,16 @@ export default defineNuxtComponent({
       swapSlot.value = null;
     }
 
+    function handleRate({ slot, rating }: { slot: MealSlotPreview; rating: number }) {
+      // MealSlotCard already called the API — we just update local state here
+      const target = slots.value.find(
+        s => s.date === slot.date && s.mealType === slot.mealType,
+      );
+      if (target) {
+        target.currentRating = rating > 0 ? rating : null;
+      }
+    }
+
     onMounted(async () => {
       // 1. Onboarding gate (same pattern as index.vue)
       try {
@@ -564,6 +576,7 @@ export default defineNuxtComponent({
       handleRemove,
       handleSwap,
       handleSwapSelect,
+      handleRate,
     };
   },
 });
