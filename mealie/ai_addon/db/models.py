@@ -166,6 +166,26 @@ class AiAddonTaskConfig(SqlAlchemyBase):
     provider_tier: Mapped[str] = mapped_column(String, nullable=False)  # key into MODEL_REGISTRY
 
 
+class AiAddonMealRating(SqlAlchemyBase):
+    """Per-user, per-recipe meal ratings submitted after eating a planned meal.
+
+    Stores integer 1-5 star ratings with upsert semantics (UniqueConstraint on
+    user_id + recipe_id). rating=0 means "clear" (handled at service level by delete).
+    group_meal_plan_id links back to the meal plan entry for provenance.
+    """
+
+    __tablename__ = "ai_addon_meal_rating"
+    __table_args__ = (
+        UniqueConstraint("user_id", "recipe_id", name="uq_meal_rating_user_recipe"),
+    )
+
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    recipe_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    recipe_name: Mapped[str] = mapped_column(String, nullable=False)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-5
+    group_meal_plan_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
 class AiAddonMealPlanMetadata(SqlAlchemyBase):
     """Per-entry metadata for AI-generated meal plan slots.
 
