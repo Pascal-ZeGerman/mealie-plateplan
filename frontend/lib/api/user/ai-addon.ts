@@ -99,6 +99,37 @@ export interface MealSlotPreview {
   effectivePortions: number;
   isLocked: boolean;
   isDiningOut: boolean;
+  currentRating: number | null;
+}
+
+export interface RatingIn {
+  recipeId: string;
+  recipeName: string;
+  rating: number;  // 0=clear, 1-5=set
+  groupMealPlanId: number | null;
+}
+
+export interface RatingOut {
+  id: number;
+  recipeId: string;
+  recipeName: string;
+  rating: number;
+  updatedAt: string | null;
+}
+
+export interface RatingHistoryResponse {
+  items: RatingOut[];
+  total: number;
+}
+
+export interface CuisineWeightEntry {
+  cuisine: string;
+  weight: number;
+  hasEnoughData: boolean;
+}
+
+export interface CuisineWeightsResponse {
+  weights: CuisineWeightEntry[];
 }
 
 export interface MealPlanPreviewResponse {
@@ -172,6 +203,9 @@ const routes = {
   mealPlanGet: (weekStart: string) => `/api/ai/meal-plan?week_start=${weekStart}`,
   mealPlanSwap: "/api/ai/meal-plan/swap",
   mealPlanMetadata: (planId: number) => `/api/ai/meal-plan/metadata/${planId}`,
+  ratings: "/api/ai/ratings",
+  ratingsHistory: "/api/ai/ratings/history",
+  ratingsCuisineWeights: "/api/ai/ratings/cuisine-weights",
 };
 
 export class AiAddonApi extends BaseAPI {
@@ -267,5 +301,19 @@ export class AiAddonApi extends BaseAPI {
     return this.requests.put<MetadataResponse, MetadataUpdate>(
       routes.mealPlanMetadata(planId), payload
     );
+  }
+
+  async submitRating(payload: RatingIn) {
+    return this.requests.post<{ status: string }, RatingIn>(routes.ratings, payload);
+  }
+
+  async getRatingHistory(limit = 20, offset = 0) {
+    return this.requests.get<RatingHistoryResponse>(
+      `${routes.ratingsHistory}?limit=${limit}&offset=${offset}`
+    );
+  }
+
+  async getCuisineWeights() {
+    return this.requests.get<CuisineWeightsResponse>(routes.ratingsCuisineWeights);
   }
 }

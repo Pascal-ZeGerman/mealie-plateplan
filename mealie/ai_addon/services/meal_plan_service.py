@@ -20,7 +20,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from mealie.ai_addon.db.models import AiAddonMealPlanMetadata, AiAddonUserPreference
+from mealie.ai_addon.db.models import AiAddonMealPlanMetadata, AiAddonMealRating, AiAddonUserPreference
 from mealie.ai_addon.providers.protocol import AIRequest
 from mealie.ai_addon.schema.meal_plan import (
     CommitMealPlanRequest,
@@ -33,6 +33,7 @@ from mealie.ai_addon.schema.meal_plan import (
     SwapSuggestion,
 )
 from mealie.ai_addon.services.ai_service import call_ai
+from mealie.ai_addon.services.rating_service import LearnedPreferences, recalculate_preferences
 from mealie.repos.all_repositories import get_repositories
 from mealie.schema import mapper
 from mealie.schema.meal_plan.new_meal import CreatePlanEntry, PlanEntryType, SavePlanEntry
@@ -46,8 +47,16 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _build_system_prompt(prefs: AiAddonUserPreference, effective_portions: float) -> str:
-    """Build the system prompt with hard constraints and soft preferences."""
+def _build_system_prompt(
+    prefs: AiAddonUserPreference,
+    effective_portions: float,
+    learned: "LearnedPreferences | None" = None,
+) -> str:
+    """Build the system prompt with hard constraints and soft preferences.
+
+    Optionally includes learned preference data (top/low rated recipes,
+    evolved cuisine weights) when available for improved AI suggestions.
+    """
     allergies = prefs.allergies if hasattr(prefs, "allergies") else []
     dietary = prefs.dietary_restrictions if hasattr(prefs, "dietary_restrictions") else []
     cuisine_prefs = prefs.cuisine_preferences if hasattr(prefs, "cuisine_preferences") else {}
@@ -59,6 +68,18 @@ def _build_system_prompt(prefs: AiAddonUserPreference, effective_portions: float
     dietary_str = ", ".join(dietary) if dietary else "none"
     loved_str = ", ".join(loved_cuisines) if loved_cuisines else "any"
     disliked_str = ", ".join(disliked_cuisines) if disliked_cuisines else "none"
+
+    # Build learned preference sections (FEED-03)
+    learned_sections = ""
+    if learned and learned.top_rated_recipes:
+        top_str = ", ".join(learned.top_rated_recipes[:10])
+        learned_sections += f"\nHIGHLY RATED by this user (include more of these): {top_str}"
+    if learned and learned.low_rated_recipes:
+        low_str = ", ".join(learned.low_rated_recipes[:10])
+        learned_sections += f"\nPOORLY RATED by this user (avoid repeating): {low_str}"
+    if learned and learned.cuisine_weights:
+        lines = [f"  {c}: {w:.2f}" for c, w in sorted(learned.cuisine_weights.items())]
+        learned_sections += "\nCUISINE WEIGHTS (0.0=avoid, 1.0=strongly prefer):\n" + "\n".join(lines)
 
     return f"""You are a meal planning assistant. Generate a weekly meal plan as a JSON object.
 
@@ -75,7 +96,7 @@ SOFT PREFERENCES:
 PORTIONS:
 - Household needs {effective_portions} portions per meal.
 - If a recipe serves more than {effective_portions * 1.5}, insert a "leftover" text entry the next day for the same meal type.
-
+{learned_sections}
 OUTPUT FORMAT:
 Respond with ONLY valid JSON matching this schema. No commentary, no markdown, no explanation.
 {{"slots": [{{"date": "YYYY-MM-DD", "meal_type": "breakfast|lunch|dinner", "type": "recipe|text", "recipe_id": "uuid-or-null", "recipe_name": "name", "title": "for-text-entries-only"}}]}}"""
@@ -232,6 +253,9 @@ async def generate_meal_plan(
     all_recipes = all_recipes_result.items
     recipe_lookup = {str(r.id): r for r in all_recipes}
 
+    # 2b. Recalculate learned preferences from seed + meal ratings (FEED-02, FEED-03)
+    learned = recalculate_preferences(session, str(user.id), prefs, list(all_recipes)) if prefs else LearnedPreferences()
+
     # 3. Fetch existing meal plan entries for the week
     week_end = payload.week_start + timedelta(days=6)
     week_start_dt = datetime(payload.week_start.year, payload.week_start.month, payload.week_start.day)
@@ -301,7 +325,7 @@ async def generate_meal_plan(
 
     # 6. Build AI prompt and call
     if empty_slots and all_recipes:
-        system_prompt = _build_system_prompt(prefs, effective_portions) if prefs else (
+        system_prompt = _build_system_prompt(prefs, effective_portions, learned=learned) if prefs else (
             f"You are a meal planning assistant. Return JSON with 'slots' array. "
             f"Only use recipe IDs from the provided list. "
             f'{{"slots": [{{"date": "YYYY-MM-DD", "meal_type": "breakfast|lunch|dinner", "type": "recipe|text", "recipe_id": "uuid-or-null", "recipe_name": "name", "title": "for-text-entries-only"}}]}}'
@@ -426,6 +450,10 @@ async def get_week_plan(
     ).all()
     meta_map = {m.group_meal_plan_id: m for m in meta_records}
 
+    # Fetch user's meal ratings for this week's recipe slots
+    user_ratings = session.query(AiAddonMealRating).filter_by(user_id=str(user.id)).all()
+    rating_map = {r.recipe_id: r.rating for r in user_ratings}
+
     # Fetch all recipes for count
     all_recipes_result = repos.recipes.by_user(user.id).page_all(
         PaginationQuery(page=1, per_page=-1)
@@ -452,6 +480,7 @@ async def get_week_plan(
             effective_portions=effective_portions,
             is_locked=meta.is_locked if meta else True,  # Manually-added = treat as locked in display
             is_dining_out=meta.is_dining_out if meta else False,
+            current_rating=rating_map.get(str(entry.recipe_id)) if entry.recipe_id else None,
         ))
 
     return MealPlanPreviewResponse(

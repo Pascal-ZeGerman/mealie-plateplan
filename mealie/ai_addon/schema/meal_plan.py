@@ -22,6 +22,7 @@ class MealSlotPreview(MealieModel):
     effective_portions: float
     is_locked: bool = False
     is_dining_out: bool = False
+    current_rating: int | None = None
 
 
 class MealPlanPreviewResponse(MealieModel):

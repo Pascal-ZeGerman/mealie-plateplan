@@ -253,3 +253,42 @@ def test_service_has_required_functions():
     assert asyncio.iscoroutinefunction(meal_plan_service.generate_meal_plan)
     assert asyncio.iscoroutinefunction(meal_plan_service.commit_meal_plan)
     assert asyncio.iscoroutinefunction(meal_plan_service.swap_meal)
+
+
+# ---------------------------------------------------------------------------
+# Learned preference injection tests (FEED-03)
+# ---------------------------------------------------------------------------
+
+
+def test_prompt_includes_learned_preferences():
+    """_build_system_prompt must include learned preference data when provided."""
+    from mealie.ai_addon.services.meal_plan_service import _build_system_prompt
+    from mealie.ai_addon.services.rating_service import LearnedPreferences
+
+    prefs = _FakePrefs()
+    learned = LearnedPreferences(
+        top_rated_recipes=["Pasta Bolognese"],
+        low_rated_recipes=["Liver Soup"],
+        cuisine_weights={"italian": 0.85},
+    )
+
+    result = _build_system_prompt(prefs, 2.5, learned=learned)
+
+    assert "HIGHLY RATED" in result, "Expected 'HIGHLY RATED' in prompt with learned data"
+    assert "Pasta Bolognese" in result, "Expected 'Pasta Bolognese' in prompt"
+    assert "POORLY RATED" in result, "Expected 'POORLY RATED' in prompt with learned data"
+    assert "Liver Soup" in result, "Expected 'Liver Soup' in prompt"
+    assert "CUISINE WEIGHTS" in result, "Expected 'CUISINE WEIGHTS' in prompt"
+    assert "italian" in result, "Expected 'italian' in CUISINE WEIGHTS"
+    assert "0.85" in result, "Expected '0.85' cuisine weight in prompt"
+
+
+def test_prompt_no_learned_preferences():
+    """_build_system_prompt must not include learned sections when learned=None (backward compat)."""
+    from mealie.ai_addon.services.meal_plan_service import _build_system_prompt
+
+    prefs = _FakePrefs()
+    result = _build_system_prompt(prefs, 2.5, learned=None)
+
+    assert "HIGHLY RATED" not in result, "Expected no 'HIGHLY RATED' section when learned=None"
+    assert "CUISINE WEIGHTS" not in result, "Expected no 'CUISINE WEIGHTS' section when learned=None"
