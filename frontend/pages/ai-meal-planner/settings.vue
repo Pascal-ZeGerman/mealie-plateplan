@@ -258,13 +258,118 @@
           </v-card>
         </v-col>
       </v-row>
+
+      <!-- Section 4: Rating History -->
+      <v-row>
+        <v-col cols="12">
+          <v-card>
+            <v-card-title class="text-h6 font-weight-bold">Rating History</v-card-title>
+            <v-card-subtitle class="text-body-2 text-medium-emphasis">
+              Meals you have rated — most recent first.
+            </v-card-subtitle>
+            <v-card-text>
+              <!-- Loading state -->
+              <div v-if="ratingHistoryLoading && ratingHistory.length === 0" class="d-flex justify-center py-12">
+                <v-progress-circular indeterminate />
+              </div>
+
+              <!-- Error state -->
+              <div v-else-if="ratingHistoryError && ratingHistory.length === 0" class="text-center py-12">
+                <p class="text-body-2 text-medium-emphasis">
+                  Could not load rating history. Refresh to try again.
+                </p>
+              </div>
+
+              <!-- Empty state -->
+              <div v-else-if="ratingHistory.length === 0" class="text-center py-12">
+                <p class="text-subtitle-1 font-weight-bold">No ratings yet</p>
+                <p class="text-body-2 text-medium-emphasis mt-2">
+                  After your first meal plan is committed, tap the stars on any recipe slot to rate it. Ratings help the AI learn your preferences.
+                </p>
+              </div>
+
+              <!-- Rating list -->
+              <v-list v-else density="compact">
+                <v-list-item v-for="item in ratingHistory" :key="item.id">
+                  <template #prepend>
+                    <v-rating
+                      :model-value="item.rating"
+                      readonly
+                      size="x-small"
+                      color="warning"
+                      density="compact"
+                    />
+                  </template>
+                  <v-list-item-title class="text-body-2 font-weight-bold">
+                    {{ item.recipeName }}
+                  </v-list-item-title>
+                  <v-list-item-subtitle class="text-caption text-medium-emphasis">
+                    {{ formatRatingDate(item.updatedAt) }}
+                  </v-list-item-subtitle>
+                </v-list-item>
+              </v-list>
+
+              <!-- Load more button -->
+              <div v-if="ratingHistory.length < ratingHistoryTotal" class="d-flex justify-center mt-4">
+                <v-btn
+                  variant="text"
+                  size="small"
+                  :loading="ratingHistoryLoading"
+                  @click="loadMoreRatings"
+                >
+                  Load more ratings
+                </v-btn>
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+
+      <!-- Section 5: Learned Cuisine Preferences -->
+      <v-row class="mt-4">
+        <v-col cols="12">
+          <v-card>
+            <v-card-title class="text-subtitle-1 font-weight-bold">
+              Learned Cuisine Preferences
+            </v-card-title>
+            <v-card-text>
+              <p class="text-body-2 text-medium-emphasis mb-4">
+                Updated automatically as you rate meals. Read-only — edit your base preferences above.
+              </p>
+
+              <div v-if="cuisineWeightsLoading" class="d-flex justify-center py-6">
+                <v-progress-circular indeterminate size="24" />
+              </div>
+
+              <div v-else-if="cuisineWeights.length === 0" class="text-center py-6">
+                <p class="text-body-2 text-medium-emphasis">No cuisine data available yet.</p>
+              </div>
+
+              <div v-else>
+                <div v-for="cw in cuisineWeights" :key="cw.cuisine" class="d-flex align-center mb-2">
+                  <span class="text-body-2 mr-2" style="min-width: 120px;">{{ cw.cuisine }}</span>
+                  <v-chip
+                    v-if="cw.hasEnoughData"
+                    size="x-small"
+                    variant="tonal"
+                    :color="cw.weight >= 0.75 ? 'success' : cw.weight >= 0.40 ? 'secondary' : 'error'"
+                  >
+                    {{ cw.weight.toFixed(2) }}
+                  </v-chip>
+                  <span v-else class="text-caption text-medium-emphasis">(not enough data yet)</span>
+                </div>
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
     </template>
   </v-container>
 </template>
 
 <script lang="ts">
 import { useUserApi } from "~/composables/api";
-import type { ProviderKeyStatus, BudgetStatusResponse, TaskConfigListResponse } from "~/lib/api/user/ai-addon";
+import type { ProviderKeyStatus, BudgetStatusResponse, TaskConfigListResponse, RatingOut, CuisineWeightEntry } from "~/lib/api/user/ai-addon";
 
 export default defineNuxtComponent({
   setup() {
@@ -301,6 +406,18 @@ export default defineNuxtComponent({
     // Task config state
     const taskConfigData = ref<TaskConfigListResponse | null>(null);
     const deletingTask = reactive<Record<string, boolean>>({});
+
+    // Rating history state
+    const ratingHistory = ref<RatingOut[]>([]);
+    const ratingHistoryTotal = ref(0);
+    const ratingHistoryLoading = ref(false);
+    const ratingHistoryError = ref(false);
+    const ratingHistoryOffset = ref(0);
+    const RATINGS_PAGE_SIZE = 20;
+
+    // Cuisine weights state
+    const cuisineWeights = ref<CuisineWeightEntry[]>([]);
+    const cuisineWeightsLoading = ref(false);
 
     const tierSelectItems = computed(() => {
       return (taskConfigData.value?.availableTiers ?? []).map((t) => ({
@@ -351,8 +468,60 @@ export default defineNuxtComponent({
       }
     }
 
+    async function loadRatingHistory(append = false) {
+      ratingHistoryLoading.value = true;
+      ratingHistoryError.value = false;
+      try {
+        const { data } = await api.aiAddon.getRatingHistory(RATINGS_PAGE_SIZE, ratingHistoryOffset.value);
+        if (data) {
+          if (append) {
+            ratingHistory.value.push(...data.items);
+          }
+          else {
+            ratingHistory.value = data.items;
+          }
+          ratingHistoryTotal.value = data.total;
+        }
+      }
+      catch (_e) {
+        ratingHistoryError.value = true;
+      }
+      finally {
+        ratingHistoryLoading.value = false;
+      }
+    }
+
+    async function loadMoreRatings() {
+      ratingHistoryOffset.value += RATINGS_PAGE_SIZE;
+      await loadRatingHistory(true);
+    }
+
+    async function loadCuisineWeights() {
+      cuisineWeightsLoading.value = true;
+      try {
+        const { data } = await api.aiAddon.getCuisineWeights();
+        if (data) {
+          cuisineWeights.value = data.weights;
+        }
+      }
+      catch (_e) {
+        // Silent failure — section just stays empty
+      }
+      finally {
+        cuisineWeightsLoading.value = false;
+      }
+    }
+
+    function formatRatingDate(dateStr: string | null): string {
+      if (!dateStr) return "";
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    }
+
     onMounted(() => {
       void loadAll();
+      void loadRatingHistory();
+      void loadCuisineWeights();
     });
 
     async function saveProviderKey(provider: string) {
@@ -477,11 +646,19 @@ export default defineNuxtComponent({
       tierDisplayMap,
       tierCostMap,
       deletingTask,
+      ratingHistory,
+      ratingHistoryTotal,
+      ratingHistoryLoading,
+      ratingHistoryError,
+      cuisineWeights,
+      cuisineWeightsLoading,
       saveProviderKey,
       deleteProviderKey,
       saveBudget,
       updateTaskConfig,
       deleteTaskConfig,
+      loadMoreRatings,
+      formatRatingDate,
     };
   },
 });
