@@ -417,7 +417,7 @@ export default defineNuxtComponent({
         }
       }
       else if (planState.value === "committed") {
-        const planId = committedPlanIds.value.get(`${slot.date}-${slot.mealType}`);
+        const planId = slot.groupMealPlanId ?? committedPlanIds.value.get(`${slot.date}-${slot.mealType}`);
         if (!planId) return;
         const idx = slots.value.findIndex(s => s.date === slot.date && s.mealType === slot.mealType);
         if (idx === -1) return;
