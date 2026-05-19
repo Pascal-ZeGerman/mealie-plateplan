@@ -30,7 +30,7 @@
             <template v-if="planState === 'empty' || planState === 'committed'">
               <NuxtLink
                 v-if="planState === 'committed'"
-                to="/meal-plans"
+                to="/household/mealplan/planner"
                 class="text-caption text-decoration-none text-primary mr-2"
               >
                 View in Mealie Calendar
@@ -212,6 +212,15 @@
     >
       Your meal plan has been saved to Mealie.
     </v-snackbar>
+
+    <!-- Lock error snackbar -->
+    <v-snackbar
+      v-model="lockError"
+      color="error"
+      :timeout="4000"
+    >
+      Could not update lock — try again
+    </v-snackbar>
   </v-container>
 </template>
 
@@ -262,6 +271,7 @@ export default defineNuxtComponent({
     const committing = ref(false);
     const generationError = ref("");
     const showSuccessSnackbar = ref(false);
+    const lockError = ref(false);
     const generatingMessage = ref(GENERATING_MESSAGES[0]);
     let generatingInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -339,7 +349,7 @@ export default defineNuxtComponent({
 
         if (error) {
           const status = (error as { status?: number }).status;
-          if (status === 402) {
+          if (status === 429) {
             generationError.value = "Weekly AI budget reached. Plan generation is paused until Sunday. View settings to adjust your budget.";
           }
           else if (status === 422 || status === 404) {
@@ -398,7 +408,7 @@ export default defineNuxtComponent({
       }
     }
 
-    function handleLockToggle(slot: MealSlotPreview) {
+    async function handleLockToggle(slot: MealSlotPreview) {
       if (planState.value === "preview") {
         // Local state only — no API call (metadata rows don't exist yet)
         const idx = slots.value.findIndex(s => s.date === slot.date && s.mealType === slot.mealType);
@@ -407,19 +417,21 @@ export default defineNuxtComponent({
         }
       }
       else if (planState.value === "committed") {
-        // API call — metadata rows exist post-commit
         const planId = committedPlanIds.value.get(`${slot.date}-${slot.mealType}`);
-        if (planId) {
-          api.aiAddon.updateMetadata(planId, { isLocked: !slot.isLocked }).then(({ data }) => {
-            if (data) {
-              const idx = slots.value.findIndex(s => s.date === slot.date && s.mealType === slot.mealType);
-              if (idx !== -1) {
-                slots.value[idx] = { ...slots.value[idx], isLocked: data.isLocked };
-              }
-            }
-          }).catch(() => {
-            // Ignore metadata update failures silently
-          });
+        if (!planId) return;
+        const idx = slots.value.findIndex(s => s.date === slot.date && s.mealType === slot.mealType);
+        if (idx === -1) return;
+        const prevLocked = slots.value[idx].isLocked;
+        slots.value[idx] = { ...slots.value[idx], isLocked: !prevLocked };
+        try {
+          const { data } = await api.aiAddon.updateMetadata(planId, { isLocked: !prevLocked });
+          if (data) {
+            slots.value[idx] = { ...slots.value[idx], isLocked: data.isLocked };
+          }
+        }
+        catch (_e) {
+          slots.value[idx] = { ...slots.value[idx], isLocked: prevLocked };
+          lockError.value = true;
         }
       }
     }
@@ -560,6 +572,7 @@ export default defineNuxtComponent({
       committing,
       generationError,
       showSuccessSnackbar,
+      lockError,
       generatingMessage,
       committedPlanIds,
       hasExistingPlan,
