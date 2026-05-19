@@ -99,9 +99,17 @@
       >
         {{ slot.mealType }}
       </v-chip>
-      <v-icon size="small" color="success">
-        {{ $globals.icons.lock }}
-      </v-icon>
+      <v-btn
+        v-if="showActions"
+        icon
+        size="x-small"
+        variant="text"
+        color="success"
+        :aria-label="'Unlock this meal'"
+        @click="$emit('unlock', slot)"
+      >
+        <v-icon size="small">{{ $globals.icons.lock }}</v-icon>
+      </v-btn>
     </div>
     <p
       class="text-body-1 font-weight-bold mb-1"
@@ -115,18 +123,6 @@
     >
       Serves {{ slot.effectivePortions }}×
     </p>
-    <div v-if="showActions" class="d-flex justify-end slot-actions">
-      <v-btn
-        icon
-        size="x-small"
-        variant="text"
-        color="success"
-        :aria-label="'Unlock this meal'"
-        @click="$emit('unlock', slot)"
-      >
-        <v-icon size="small">{{ $globals.icons.lock }}</v-icon>
-      </v-btn>
-    </div>
   </v-card>
 
   <!-- Normal recipe slot -->
@@ -146,6 +142,16 @@
       >
         {{ slot.mealType }}
       </v-chip>
+      <v-btn
+        v-if="showActions"
+        icon
+        size="x-small"
+        variant="text"
+        :aria-label="'Lock this meal — it will survive regeneration'"
+        @click="$emit('lock', slot)"
+      >
+        <v-icon size="small">{{ $globals.icons.lockOpen }}</v-icon>
+      </v-btn>
     </div>
     <p
       class="text-body-1 font-weight-bold mb-1"
@@ -180,7 +186,7 @@
       />
     </div>
 
-    <div v-if="showActions" class="d-flex justify-end gap-1 slot-actions">
+    <div v-if="showActions" class="d-flex justify-end slot-actions">
       <v-btn
         icon
         size="x-small"
@@ -189,15 +195,6 @@
         @click="$emit('swap', slot)"
       >
         <v-icon size="small">{{ $globals.icons.sync }}</v-icon>
-      </v-btn>
-      <v-btn
-        icon
-        size="x-small"
-        variant="text"
-        :aria-label="'Lock this meal — it will survive regeneration'"
-        @click="$emit('lock', slot)"
-      >
-        <v-icon size="small">{{ $globals.icons.lockOpen }}</v-icon>
       </v-btn>
       <v-btn
         v-if="planState === 'preview'"
