@@ -87,11 +87,12 @@ class Ux04aScriptSetupMigrationTests:
             "D-07: withDefaults(defineProps<Props>(), {{ ... }}) must wrap the props declaration."
         )
 
-    def test_ux04a_setup_return_object_removed(self):
-        """D-07: The setup() return object must not appear (script setup auto-exposes bindings)."""
-        assert "return {" not in GENERATE_CONFIG_SOURCE, (
-            "Found 'return {' in GenerateConfigPanel.vue. "
-            "D-07: <script setup> auto-exposes all top-level bindings; no explicit return object needed."
+    def test_ux04a_setup_function_opening_removed(self):
+        """D-07: The setup(props, { emit }) function opening must not appear (script setup replaces it)."""
+        assert "setup(props, { emit })" not in GENERATE_CONFIG_SOURCE, (
+            "Found 'setup(props, { emit })' in GenerateConfigPanel.vue. "
+            "D-07: <script setup> replaces the options-API setup() function; "
+            "the 'setup(props, { emit })' opening must be removed."
         )
 
 

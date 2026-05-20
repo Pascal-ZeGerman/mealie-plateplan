@@ -9,20 +9,16 @@
       <p class="text-caption text-medium-emphasis mb-2">
         Which week?
       </p>
-      <v-btn-toggle
+      <v-select
         v-model="selectedWeek"
-        mandatory
+        :items="weekOptions"
+        item-title="title"
+        item-value="value"
         variant="outlined"
         density="compact"
-        color="primary"
-      >
-        <v-btn value="this">
-          This week
-        </v-btn>
-        <v-btn value="next">
-          Next week
-        </v-btn>
-      </v-btn-toggle>
+        hide-details
+        mandatory
+      />
     </div>
 
     <!-- Meal type toggles -->
@@ -144,7 +140,8 @@
   </v-card>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+import { startOfWeek, addDays, format } from "date-fns";
 import type { GenerateMealPlanRequest } from "~/lib/api/user/ai-addon";
 
 const DAYS = [
@@ -157,74 +154,59 @@ const DAYS = [
   { value: "sunday", label: "Sun" },
 ];
 
-/** Returns the Monday of the week containing the given date as YYYY-MM-DD */
-function getMondayOf(date: Date): string {
-  const d = new Date(date);
-  const day = d.getDay(); // 0=Sun,1=Mon,...,6=Sat
-  const diff = (day === 0 ? -6 : 1 - day); // offset to Monday
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().split("T")[0];
+interface Props {
+  modelValue: boolean;
+  hasExistingPlan: boolean;
+  loading: boolean;
+}
+const props = withDefaults(defineProps<Props>(), {
+  modelValue: false,
+  hasExistingPlan: false,
+  loading: false,
+});
+
+const emit = defineEmits<{
+  "update:modelValue": [value: boolean];
+  "generate": [config: GenerateMealPlanRequest];
+}>();
+
+interface WeekOption {
+  title: string;
+  value: string;
 }
 
-export default defineNuxtComponent({
-  props: {
-    modelValue: {
-      type: Boolean,
-      default: false,
-    },
-    hasExistingPlan: {
-      type: Boolean,
-      default: false,
-    },
-    loading: {
-      type: Boolean,
-      default: false,
-    },
-  },
+const _today = new Date();
+const _monday0 = startOfWeek(_today, { weekStartsOn: 1 });
 
-  emits: ["update:modelValue", "generate"],
-
-  setup(props, { emit }) {
-    // Smart week default: Mon-Wed (days 1-3) => this week, Thu-Sun (days 4-0) => next week
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-    const defaultWeek = (dayOfWeek >= 1 && dayOfWeek <= 3) ? "this" : "next";
-
-    const selectedWeek = ref<"this" | "next">(defaultWeek);
-    const mealTypes = ref<string[]>(["breakfast", "lunch", "dinner"]);
-    const excludedDays = ref<string[]>([]);
-    const specialRequests = ref("");
-    const replaceAll = ref(false);
-
-    const weekStart = computed(() => {
-      const base = new Date();
-      if (selectedWeek.value === "next") {
-        base.setDate(base.getDate() + 7);
-      }
-      return getMondayOf(base);
-    });
-
-    function onGenerate() {
-      const config: GenerateMealPlanRequest = {
-        weekStart: weekStart.value,
-        mealTypes: mealTypes.value,
-        excludedDays: excludedDays.value,
-        specialRequests: specialRequests.value.trim() || undefined,
-        replaceUnlocked: replaceAll.value,
-      };
-      emit("generate", config);
-    }
-
-    return {
-      DAYS,
-      selectedWeek,
-      mealTypes,
-      excludedDays,
-      specialRequests,
-      replaceAll,
-      weekStart,
-      onGenerate,
-    };
-  },
+const weekOptions: WeekOption[] = [0, 1, 2, 3].map((n) => {
+  const mon = addDays(_monday0, n * 7);
+  const sun = addDays(mon, 6);
+  return {
+    title: `${format(mon, "EEE MMM d")} – ${format(sun, "EEE MMM d")}`,
+    value: format(mon, "yyyy-MM-dd"),
+  };
 });
+
+// Smart week default: Mon-Wed (days 1-3) => this week, Thu-Sun (days 4-0) => next week
+const dayOfWeek = _today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+const defaultIso = (dayOfWeek >= 1 && dayOfWeek <= 3)
+  ? weekOptions[0].value
+  : weekOptions[1].value;
+
+const selectedWeek = ref<string>(defaultIso);
+const mealTypes = ref<string[]>(["breakfast", "lunch", "dinner"]);
+const excludedDays = ref<string[]>([]);
+const specialRequests = ref("");
+const replaceAll = ref(false);
+
+function onGenerate() {
+  const config: GenerateMealPlanRequest = {
+    weekStart: selectedWeek.value,
+    mealTypes: mealTypes.value,
+    excludedDays: excludedDays.value,
+    specialRequests: specialRequests.value.trim() || undefined,
+    replaceUnlocked: replaceAll.value,
+  };
+  emit("generate", config);
+}
 </script>
