@@ -10,12 +10,13 @@ Endpoints:
 All routes require authentication (get_current_user dependency).
 Service calls are async — all handlers use async def.
 """
-from datetime import date as date_type
+from datetime import date as date_type, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from mealie.ai_addon.db.models import AiAddonMealPlanMetadata
+from mealie.db.models.household.mealplan import GroupMealPlan
 from mealie.ai_addon.schema.meal_plan import (
     CommitMealPlanRequest,
     GenerateMealPlanRequest,
@@ -111,7 +112,21 @@ async def update_metadata(
     ).first()
 
     if not meta:
-        raise HTTPException(status_code=404, detail="Metadata not found for this plan entry")
+        # Manually-added slot — create metadata on first lock/dining-out toggle
+        gmp = session.query(GroupMealPlan).filter_by(id=plan_id).first()
+        if not gmp:
+            raise HTTPException(status_code=404, detail="Meal plan entry not found")
+        entry_date: date_type = gmp.date
+        week_start = entry_date - timedelta(days=entry_date.weekday())
+        meta = AiAddonMealPlanMetadata(
+            household_id=str(current_user.household_id),
+            group_meal_plan_id=plan_id,
+            is_locked=False,
+            is_dining_out=False,
+            ai_generated=False,
+            week_start=str(week_start),
+        )
+        session.add(meta)
 
     if payload.is_locked is not None:
         meta.is_locked = payload.is_locked

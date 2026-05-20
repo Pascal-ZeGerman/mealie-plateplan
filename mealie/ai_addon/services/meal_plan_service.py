@@ -481,6 +481,7 @@ async def get_week_plan(
             is_locked=meta.is_locked if meta else True,  # Manually-added = treat as locked in display
             is_dining_out=meta.is_dining_out if meta else False,
             current_rating=rating_map.get(str(entry.recipe_id)) if entry.recipe_id else None,
+            group_meal_plan_id=entry.id,
         ))
 
     return MealPlanPreviewResponse(

@@ -100,6 +100,7 @@ export interface MealSlotPreview {
   isLocked: boolean;
   isDiningOut: boolean;
   currentRating: number | null;
+  groupMealPlanId: number | null;
 }
 
 export interface RatingIn {

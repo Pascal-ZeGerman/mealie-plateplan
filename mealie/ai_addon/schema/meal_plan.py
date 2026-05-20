@@ -23,6 +23,7 @@ class MealSlotPreview(MealieModel):
     is_locked: bool = False
     is_dining_out: bool = False
     current_rating: int | None = None
+    group_meal_plan_id: int | None = None
 
 
 class MealPlanPreviewResponse(MealieModel):
